@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function LoginPage() {
@@ -8,6 +9,7 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,7 +22,12 @@ export default function LoginPage() {
         password,
       });
       if (error) setError(error.message);
-      else setMessage("Giriş başarılı! Yönlendiriliyorsunuz...");
+      else {
+        setMessage("Giriş başarılı! Yönlendiriliyorsunuz...");
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1000);
+      }
     } else {
       // Kayıt
       const { error } = await supabase.auth.signUp({ email, password });
