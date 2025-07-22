@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Dashboard() {
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     fetchProjects();
@@ -32,7 +34,6 @@ export default function Dashboard() {
     if (image) {
       const fileExt = image.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      // DİKKAT: Dosya yolunun başında / yok!
       const { error: uploadError } = await supabase.storage
         .from("project-images")
         .upload(fileName, image, { upsert: true });
@@ -67,6 +68,55 @@ export default function Dashboard() {
 
   return (
     <div style={{ maxWidth: 540, margin: "40px auto" }}>
+      {/* Üstte Keşfet ve Profilim Butonları */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <button
+          onClick={() => router.push("/explore")}
+          style={{
+            background: "#ede9fe",
+            color: "#7c3aed",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 24px",
+            fontWeight: 600,
+            fontSize: 16,
+            boxShadow: "0 2px 12px #7c3aed22",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = "#d1c4e9")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "#ede9fe")}
+        >
+          Keşfet
+        </button>
+        <button
+          onClick={() => router.push("/profile")}
+          style={{
+            background: "#7c3aed",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 24px",
+            fontWeight: 600,
+            fontSize: 16,
+            boxShadow: "0 2px 12px #7c3aed22",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = "#5b21b6")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "#7c3aed")}
+        >
+          Profilim
+        </button>
+      </div>
+      {/* Proje Ekleme Kutusu */}
       <div
         style={{
           background: "#fff",
