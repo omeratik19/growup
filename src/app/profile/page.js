@@ -408,6 +408,7 @@ export default function ProfilePage() {
       {projects.map((p) => (
         <div
           key={p.id}
+          onClick={() => router.push(`/project/${p.id}`)}
           style={{
             background: "#fff",
             borderRadius: 12,
@@ -416,6 +417,16 @@ export default function ProfilePage() {
             marginBottom: 20,
             display: "flex",
             gap: 16,
+            cursor: "pointer",
+            transition: "transform 0.2s, box-shadow 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 4px 20px #7c3aed33";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 2px 12px #7c3aed22";
           }}
         >
           {p.image_url && (
