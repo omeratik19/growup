@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function ExplorePage() {
+  const router = useRouter();
   const [tab, setTab] = useState("post");
   const [posts, setPosts] = useState([]);
   const [profiles, setProfiles] = useState({});
@@ -13,6 +15,10 @@ export default function ExplorePage() {
   const [newComment, setNewComment] = useState(""); // Yeni yorum metni
   const [commentLoading, setCommentLoading] = useState(false); // Yorum yükleme durumu
   const [followingUsers, setFollowingUsers] = useState(new Set()); // Takip edilen kullanıcılar
+  // Arama özelliği için state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState({ users: [], posts: [] });
+  const [isSearching, setIsSearching] = useState(false);
   // Reels formu için state
   const [reelDesc, setReelDesc] = useState("");
   const [reelVideo, setReelVideo] = useState(null);
@@ -389,6 +395,56 @@ export default function ExplorePage() {
     return userId ? userId.slice(0, 8).toUpperCase() : "Kullanıcı";
   }
 
+  // Arama fonksiyonu
+  async function handleSearch() {
+    if (!searchQuery.trim()) {
+      setSearchResults({ users: [], posts: [] });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Kullanıcı arama (username'e göre)
+      const { data: users } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("username", `%${searchQuery.trim()}%`)
+        .limit(10);
+
+      // Post arama (content'e göre)
+      const { data: posts } = await supabase
+        .from("posts")
+        .select("*")
+        .ilike("content", `%${searchQuery.trim()}%`)
+        .limit(10);
+
+      setSearchResults({
+        users: users || [],
+        posts: posts || [],
+      });
+    } catch (error) {
+      console.error("Arama hatası:", error);
+      setSearchResults({ users: [], posts: [] });
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  // Logout fonksiyonu
+  async function handleLogout() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Çıkış hatası:", error);
+        return;
+      }
+      console.log("Başarıyla çıkış yapıldı");
+      router.push("/login");
+    } catch (error) {
+      console.error("Çıkış işlemi hatası:", error);
+    }
+  }
+
   async function handleReelSubmit(e) {
     e.preventDefault();
     setReelMsg("");
@@ -441,6 +497,311 @@ export default function ExplorePage() {
 
   return (
     <div style={{ maxWidth: 540, margin: "40px auto" }}>
+      {/* Navigation Butonları */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <button
+          onClick={() => router.push("/dashboard")}
+          style={{
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Anasayfa
+        </button>
+        <button
+          onClick={() => router.push("/profile")}
+          style={{
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Profilim
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: "10px 16px",
+            background: "#ef4444",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Çıkış
+        </button>
+      </div>
+
+      {/* Arama Çubuğu */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 4px 20px rgba(124,58,237,0.1)",
+          padding: 16,
+          marginBottom: 24,
+          border: "1px solid rgba(124,58,237,0.1)",
+        }}
+      >
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Kullanıcı veya içerik ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
+            style={{
+              flex: 1,
+              padding: "12px 16px",
+              borderRadius: 12,
+              border: "1px solid #e2e8f0",
+              fontSize: 14,
+              outline: "none",
+              transition: "all 0.3s ease",
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            disabled={isSearching}
+            style={{
+              padding: "12px 20px",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: 16,
+              transition: "all 0.3s ease",
+              opacity: isSearching ? 0.7 : 1,
+            }}
+          >
+            {isSearching ? "🔍" : "🔍"}
+          </button>
+        </div>
+
+        {/* Arama Sonuçları */}
+        {(searchResults.users.length > 0 || searchResults.posts.length > 0) && (
+          <div style={{ marginTop: 16 }}>
+            {/* Kullanıcı Sonuçları */}
+            {searchResults.users.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#7c3aed",
+                    marginBottom: 8,
+                  }}
+                >
+                  👥 Kullanıcılar ({searchResults.users.length})
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  {searchResults.users.map((user) => (
+                    <div
+                      key={user.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 16px",
+                        background: "#f8fafc",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background:
+                            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: 14,
+                        }}
+                      >
+                        {user.username
+                          ? user.username.charAt(0).toUpperCase()
+                          : "U"}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>
+                          @{user.username || "kullanıcı"}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#666" }}>
+                          {user.bio || "Bio yok"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleFollow(user.id)}
+                        style={{
+                          padding: "8px 16px",
+                          background: followingUsers.has(user.id)
+                            ? "#e2e8f0"
+                            : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                          color: followingUsers.has(user.id) ? "#666" : "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {followingUsers.has(user.id)
+                          ? "Takip Ediliyor"
+                          : "Takip Et"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Post Sonuçları */}
+            {searchResults.posts.length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#7c3aed",
+                    marginBottom: 8,
+                  }}
+                >
+                  📝 İçerikler ({searchResults.posts.length})
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  {searchResults.posts.map((post) => (
+                    <div
+                      key={post.id}
+                      style={{
+                        padding: "12px 16px",
+                        background: "#f8fafc",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontWeight: 600,
+                            fontSize: 12,
+                          }}
+                        >
+                          {formatUsername(post.user_id).charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600 }}>
+                          {formatUsername(post.user_id)}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#666" }}>
+                          {formatDate(post.created_at)}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 14, lineHeight: 1.4 }}>
+                        {post.content}
+                      </div>
+                      {post.media_url && (
+                        <div style={{ marginTop: 8 }}>
+                          {post.type === "reel" ? (
+                            <video
+                              src={post.media_url}
+                              style={{
+                                width: "100%",
+                                maxHeight: 200,
+                                borderRadius: 8,
+                                objectFit: "cover",
+                              }}
+                              controls
+                            />
+                          ) : (
+                            <img
+                              src={post.media_url}
+                              style={{
+                                width: "100%",
+                                maxHeight: 200,
+                                borderRadius: 8,
+                                objectFit: "cover",
+                              }}
+                              alt="Post media"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Arama yapıldı ama sonuç yok */}
+        {searchQuery &&
+          !isSearching &&
+          searchResults.users.length === 0 &&
+          searchResults.posts.length === 0 && (
+            <div
+              style={{
+                marginTop: 16,
+                textAlign: "center",
+                color: "#666",
+                fontSize: 14,
+                padding: "20px",
+              }}
+            >
+              🔍 "{searchQuery}" için sonuç bulunamadı
+            </div>
+          )}
+      </div>
+
       {/* Sekmeler */}
       <div
         style={{

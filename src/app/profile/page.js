@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [bio, setBio] = useState("");
+  const [username, setUsername] = useState("");
   const [avatar, setAvatar] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [projects, setProjects] = useState([]);
@@ -34,6 +37,7 @@ export default function ProfilePage() {
         .single();
       setProfile(profileData);
       setBio(profileData?.bio || "");
+      setUsername(profileData?.username || "");
       setAvatarUrl(profileData?.avatar_url || "");
       // Kullanıcının projelerini çek
       const { data: myProjects } = await supabase
@@ -85,7 +89,7 @@ export default function ProfilePage() {
 
       const { data: followerUsers, error: followerUsersError } = await supabase
         .from("profiles")
-        .select("id, avatar_url")
+        .select("id, avatar_url, username")
         .in("id", followerIds);
 
       if (followerUsersError) {
@@ -109,7 +113,7 @@ export default function ProfilePage() {
       const { data: followingUsers, error: followingUsersError } =
         await supabase
           .from("profiles")
-          .select("id, avatar_url")
+          .select("id, avatar_url, username")
           .in("id", followingIds);
 
       if (followingUsersError) {
@@ -152,6 +156,7 @@ export default function ProfilePage() {
     const { error } = await supabase.from("profiles").upsert({
       id: user.id,
       bio,
+      username: username.trim(),
       avatar_url: newAvatarUrl,
       updated_at: new Date().toISOString(),
     });
@@ -162,6 +167,21 @@ export default function ProfilePage() {
       setMessage("Profil güncellenirken hata oluştu!");
     }
     setSaving(false);
+  }
+
+  // Logout fonksiyonu
+  async function handleLogout() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Çıkış hatası:", error);
+        return;
+      }
+      console.log("Başarıyla çıkış yapıldı");
+      router.push("/login");
+    } catch (error) {
+      console.error("Çıkış işlemi hatası:", error);
+    }
   }
 
   if (loading)
@@ -177,6 +197,62 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 540, margin: "40px auto" }}>
+      {/* Navigation Butonları */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <button
+          onClick={() => router.push("/dashboard")}
+          style={{
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Anasayfa
+        </button>
+        <button
+          onClick={() => router.push("/explore")}
+          style={{
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Keşfet
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: "10px 16px",
+            background: "#ef4444",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 14,
+          }}
+        >
+          Çıkış
+        </button>
+      </div>
+
       {/* Kullanıcı Bilgileri ve Profil Düzenleme */}
       <div
         style={{
@@ -217,8 +293,13 @@ export default function ProfilePage() {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 20, color: "#7c3aed" }}>
-            {user.email}
+            {username || user.email}
           </div>
+          {username && (
+            <div style={{ fontSize: 14, color: "#666", marginTop: 2 }}>
+              {user.email}
+            </div>
+          )}
 
           {/* Takip Sayıları */}
           <div
@@ -249,6 +330,20 @@ export default function ProfilePage() {
             </div>
           </div>
           <form onSubmit={handleProfileUpdate} style={{ marginTop: 8 }}>
+            <input
+              type="text"
+              placeholder="Kullanıcı adı (örn: omeratik)"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              style={{
+                width: "100%",
+                padding: 8,
+                borderRadius: 6,
+                border: "1px solid #ddd",
+                marginBottom: 8,
+                fontSize: 14,
+              }}
+            />
             <textarea
               placeholder="Kendini kısaca tanıt (bio)"
               value={bio}
@@ -417,7 +512,7 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>
-                    {follower.id.slice(0, 8).toUpperCase()}
+                    {follower.username || follower.id.slice(0, 8).toUpperCase()}
                   </span>
                 </div>
               ))}
@@ -487,7 +582,7 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>
-                    {followed.id.slice(0, 8).toUpperCase()}
+                    {followed.username || followed.id.slice(0, 8).toUpperCase()}
                   </span>
                 </div>
               ))}

@@ -26,6 +26,20 @@ export default function Dashboard() {
     setLoading(false);
   }
 
+  async function handleLogout() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Çıkış hatası:", error);
+        return;
+      }
+      console.log("Başarıyla çıkış yapıldı");
+      router.push("/login");
+    } catch (error) {
+      console.error("Çıkış işlemi hatası:", error);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setMessage("");
@@ -114,6 +128,25 @@ export default function Dashboard() {
           onMouseOut={(e) => (e.currentTarget.style.background = "#7c3aed")}
         >
           Profilim
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: "#ef4444",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 24px",
+            fontWeight: 600,
+            fontSize: 16,
+            boxShadow: "0 2px 12px #ef444422",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = "#dc2626")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "#ef4444")}
+        >
+          Çıkış
         </button>
       </div>
       {/* Proje Ekleme Kutusu */}
