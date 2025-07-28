@@ -15,6 +15,13 @@ export default function ProjectDetailPage() {
   const [newComment, setNewComment] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState({
+    users: [],
+    projects: [],
+  });
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -59,6 +66,11 @@ export default function ProjectDetailPage() {
 
       // Yorumları çek
       await fetchComments(projectData.id);
+
+      // Kullanıcının bu projeyi beğenip beğenmediğini kontrol et
+      if (userData.user) {
+        await checkUserLike(projectData.id, userData.user.id);
+      }
     } catch (err) {
       setError("Bir hata oluştu");
       console.error("Proje detay yükleme hatası:", err);
@@ -122,6 +134,18 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // Kullanıcının beğeni durumunu kontrol et
+  async function checkUserLike(projectId, userId) {
+    const { data } = await supabase
+      .from("project_likes")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("user_id", userId)
+      .single();
+
+    setIsLiked(!!data);
+  }
+
   // Yorum ekle
   async function addComment(e) {
     e.preventDefault();
@@ -169,6 +193,79 @@ export default function ProjectDetailPage() {
       await fetchComments(params.id);
     } catch (err) {
       console.error("Yorum silme hatası:", err);
+    }
+  }
+
+  // Beğeni toggle
+  async function toggleLike() {
+    if (!user) return;
+
+    try {
+      if (isLiked) {
+        // Beğeniyi kaldır
+        const { error } = await supabase
+          .from("project_likes")
+          .delete()
+          .eq("project_id", params.id)
+          .eq("user_id", user.id);
+
+        if (!error) {
+          await supabase.rpc("decrement_project_likes", {
+            project_id: params.id,
+          });
+          setIsLiked(false);
+          // Proje bilgilerini yenile
+          fetchProjectDetails();
+        }
+      } else {
+        // Beğeni ekle
+        const { error } = await supabase
+          .from("project_likes")
+          .insert({ project_id: params.id, user_id: user.id });
+
+        if (!error) {
+          await supabase.rpc("increment_project_likes", {
+            project_id: params.id,
+          });
+          setIsLiked(true);
+          // Proje bilgilerini yenile
+          fetchProjectDetails();
+        }
+      }
+    } catch (error) {
+      console.error("Beğeni işlemi hatası:", error);
+    }
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim()) {
+      setSearchResults({ users: [], projects: [] });
+      return;
+    }
+    setIsSearching(true);
+    try {
+      // Kullanıcı arama
+      const { data: users } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("username", `%${searchQuery.trim()}%`)
+        .limit(10);
+
+      // Proje arama
+      const { data: projects } = await supabase
+        .from("projects")
+        .select("*")
+        .or(
+          `title.ilike.%${searchQuery.trim()}%,description.ilike.%${searchQuery.trim()}%`
+        )
+        .limit(10);
+
+      setSearchResults({ users: users || [], projects: projects || [] });
+    } catch (error) {
+      console.error("Arama hatası:", error);
+      setSearchResults({ users: [], projects: [] });
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -293,6 +390,199 @@ export default function ProjectDetailPage() {
         >
           Çıkış
         </button>
+      </div>
+
+      {/* Arama Çubuğu */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          padding: 20,
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Kullanıcı veya proje ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
+            style={{
+              flex: 1,
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              fontSize: 16,
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            disabled={isSearching}
+            style={{
+              padding: "12px 20px",
+              background: "#7c3aed",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: 16,
+            }}
+          >
+            {isSearching ? "🔍" : "🔍"}
+          </button>
+        </div>
+
+        {/* Arama Sonuçları */}
+        {(searchResults.users.length > 0 ||
+          searchResults.projects.length > 0) && (
+          <div style={{ marginTop: 16 }}>
+            {/* Kullanıcı Sonuçları */}
+            {searchResults.users.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{ fontWeight: 600, marginBottom: 8, color: "#7c3aed" }}
+                >
+                  Kullanıcılar ({searchResults.users.length})
+                </div>
+                {searchResults.users.map((user) => (
+                  <div
+                    key={user.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px",
+                      background: "#f8f9fa",
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => router.push(`/profile/${user.id}`)}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        background:
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#fff",
+                        fontSize: 16,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt="pp"
+                          style={{
+                            width: 40,
+                            height: 40,
+                            objectFit: "cover",
+                            borderRadius: "50%",
+                          }}
+                        />
+                      ) : (
+                        user.username?.[0]?.toUpperCase() ||
+                        user.id.slice(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#374151" }}>
+                        {user.username || user.id.slice(0, 8).toUpperCase()}
+                      </div>
+                      {user.bio && (
+                        <div style={{ fontSize: 14, color: "#6b7280" }}>
+                          {user.bio.length > 50
+                            ? user.bio.substring(0, 50) + "..."
+                            : user.bio}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Proje Sonuçları */}
+            {searchResults.projects.length > 0 && (
+              <div>
+                <div
+                  style={{ fontWeight: 600, marginBottom: 8, color: "#7c3aed" }}
+                >
+                  Projeler ({searchResults.projects.length})
+                </div>
+                {searchResults.projects.map((project) => (
+                  <div
+                    key={project.id}
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      padding: "12px",
+                      background: "#f8f9fa",
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => router.push(`/project/${project.id}`)}
+                  >
+                    {project.image_url && (
+                      <img
+                        src={project.image_url}
+                        alt="proje görseli"
+                        style={{
+                          width: 60,
+                          height: 60,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                        }}
+                      />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: "#374151" }}>
+                        {project.title}
+                      </div>
+                      <div
+                        style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}
+                      >
+                        {project.description &&
+                          (project.description.length > 80
+                            ? project.description.substring(0, 80) + "..."
+                            : project.description)}
+                      </div>
+                      <div
+                        style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
+                      >
+                        {new Date(project.created_at).toLocaleDateString(
+                          "tr-TR"
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {searchQuery &&
+          !isSearching &&
+          searchResults.users.length === 0 &&
+          searchResults.projects.length === 0 && (
+            <div
+              style={{ marginTop: 16, textAlign: "center", color: "#6b7280" }}
+            >
+              🔍 "{searchQuery}" için sonuç bulunamadı
+            </div>
+          )}
       </div>
 
       {/* Proje Detayları */}
@@ -421,6 +711,7 @@ export default function ProjectDetailPage() {
               borderTop: "1px solid #e5e7eb",
               color: "#6b7280",
               fontSize: 14,
+              alignItems: "center",
             }}
           >
             <div>
@@ -434,6 +725,35 @@ export default function ProjectDetailPage() {
                   {new Date(project.updated_at).toLocaleString("tr-TR")}
                 </div>
               )}
+            {/* Beğeni Butonu */}
+            <div style={{ marginLeft: "auto" }}>
+              <button
+                onClick={toggleLike}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 16px",
+                  borderRadius: 20,
+                  transition: "background 0.2s",
+                  fontSize: 16,
+                }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = "#f3f4f6")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <span style={{ fontSize: 20 }}>{isLiked ? "❤️" : "🤍"}</span>
+                <span style={{ color: "#6b7280" }}>
+                  {project.likes || 0} beğeni
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Proje Sahibi Kontrolü */}
