@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import NotificationBell from "../../components/NotificationBell";
+import ChatSystem from "../../components/ChatSystem";
 
 export default function Dashboard() {
   const [title, setTitle] = useState("");
@@ -434,6 +435,9 @@ export default function Dashboard() {
 
         {/* Bildirim Zili */}
         <NotificationBell />
+
+        {/* Mesajlaşma Sistemi */}
+        <ChatSystem />
 
         {/* Bildirimler Sayfası Linki */}
         <button

@@ -56,13 +56,7 @@ export default function NotificationBell() {
     try {
       const { data, error } = await supabase
         .from("notifications")
-        .select(
-          `
-          *,
-          from_user:from_user_id(username, avatar_url),
-          project:project_id(title, image_url)
-        `
-        )
+        .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
