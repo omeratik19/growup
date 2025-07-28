@@ -55,7 +55,18 @@ export default function UserProfilePage() {
       // Kullanıcının projelerini çek
       const { data: userProjects } = await supabase
         .from("projects")
-        .select("*")
+        .select(
+          `
+          *,
+          categories (
+            id,
+            name,
+            slug,
+            color,
+            icon
+          )
+        `
+        )
         .eq("user_id", params.id)
         .order("created_at", { ascending: false });
 
@@ -471,6 +482,24 @@ export default function UserProfilePage() {
               <div style={{ fontSize: 13, color: "#888" }}>
                 {new Date(p.created_at).toLocaleString("tr-TR")}
               </div>
+              {/* Kategori Etiketi */}
+              {p.categories && (
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "4px 8px",
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    marginTop: 8,
+                    background: p.categories.color + "20",
+                    color: p.categories.color,
+                    border: `1px solid ${p.categories.color}40`,
+                  }}
+                >
+                  {p.categories.icon} {p.categories.name}
+                </div>
+              )}
             </div>
           </div>
         ))}

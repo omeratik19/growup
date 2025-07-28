@@ -37,7 +37,18 @@ export default function ProjectDetailPage() {
       // Proje detaylarını çek
       const { data: projectData, error: projectError } = await supabase
         .from("projects")
-        .select("*")
+        .select(
+          `
+          *,
+          categories (
+            id,
+            name,
+            slug,
+            color,
+            icon
+          )
+        `
+        )
         .eq("id", params.id)
         .single();
 
@@ -696,11 +707,30 @@ export default function ProjectDetailPage() {
               fontSize: 18,
               lineHeight: 1.7,
               color: "#374151",
-              marginBottom: 32,
+              marginBottom: 24,
             }}
           >
             {project.description}
           </div>
+
+          {/* Kategori Etiketi */}
+          {project.categories && (
+            <div
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                borderRadius: 20,
+                fontSize: 14,
+                fontWeight: 600,
+                marginBottom: 24,
+                background: project.categories.color + "20",
+                color: project.categories.color,
+                border: `1px solid ${project.categories.color}40`,
+              }}
+            >
+              {project.categories.icon} {project.categories.name}
+            </div>
+          )}
 
           {/* Proje Meta Bilgileri */}
           <div

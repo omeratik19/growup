@@ -7,6 +7,8 @@ export default function Dashboard() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [categories, setCategories] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -17,18 +19,54 @@ export default function Dashboard() {
     projects: [],
   });
   const [isSearching, setIsSearching] = useState(false);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterDate, setFilterDate] = useState("newest");
+  const [filterLikes, setFilterLikes] = useState("all");
+  const [filteredProjects, setFilteredProjects] = useState([]);
+  const [editingProject, setEditingProject] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editImage, setEditImage] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [user, setUser] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
+    // Kullanıcı bilgisini al
+    async function getUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    }
+    getUser();
+
     fetchProjects();
     fetchUserLikes();
+    fetchCategories();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [projects, filterCategory, filterDate, filterLikes]);
 
   async function fetchProjects() {
     setLoading(true);
     const { data, error } = await supabase
       .from("projects")
-      .select("*")
+      .select(
+        `
+        *,
+        categories (
+          id,
+          name,
+          slug,
+          color,
+          icon
+        )
+      `
+      )
       .order("created_at", { ascending: false });
     if (!error) setProjects(data);
     setLoading(false);
@@ -48,6 +86,21 @@ export default function Dashboard() {
     if (likes) {
       const likedProjects = new Set(likes.map((like) => like.project_id));
       setUserLikes(likedProjects);
+    }
+  }
+
+  async function fetchCategories() {
+    const { data } = await supabase
+      .from("categories")
+      .select("*")
+      .order("name");
+
+    if (data) {
+      setCategories(data);
+      // Varsayılan kategori seç
+      if (data.length > 0 && !selectedCategory) {
+        setSelectedCategory(data[0].id);
+      }
     }
   }
 
@@ -92,12 +145,14 @@ export default function Dashboard() {
       title,
       description,
       image_url,
+      category_id: selectedCategory,
     });
     if (!error) {
       setMessage("Proje başarıyla eklendi!");
       setTitle("");
       setDescription("");
       setImage(null);
+      setSelectedCategory(categories.length > 0 ? categories[0].id : "");
       fetchProjects();
     } else {
       setMessage("Proje eklenirken hata oluştu!");
@@ -195,6 +250,155 @@ export default function Dashboard() {
     }
   }
 
+  function applyFilters() {
+    let filtered = [...projects];
+
+    // Kategori filtresi
+    if (filterCategory) {
+      filtered = filtered.filter(
+        (project) => project.category_id === filterCategory
+      );
+    }
+
+    // Tarih filtresi
+    switch (filterDate) {
+      case "newest":
+        filtered.sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
+        break;
+      case "oldest":
+        filtered.sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
+        break;
+      case "this_week":
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        filtered = filtered.filter(
+          (project) => new Date(project.created_at) >= weekAgo
+        );
+        break;
+      case "this_month":
+        const monthAgo = new Date();
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        filtered = filtered.filter(
+          (project) => new Date(project.created_at) >= monthAgo
+        );
+        break;
+    }
+
+    // Beğeni filtresi
+    switch (filterLikes) {
+      case "most_liked":
+        filtered.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+        break;
+      case "least_liked":
+        filtered.sort((a, b) => (a.likes || 0) - (b.likes || 0));
+        break;
+      case "no_likes":
+        filtered = filtered.filter(
+          (project) => !project.likes || project.likes === 0
+        );
+        break;
+    }
+
+    setFilteredProjects(filtered);
+  }
+
+  function startEditing(project) {
+    setEditingProject(project);
+    setEditTitle(project.title);
+    setEditDescription(project.description || "");
+    setEditCategory(project.category_id || "");
+    setEditImage(null);
+  }
+
+  function cancelEditing() {
+    setEditingProject(null);
+    setEditTitle("");
+    setEditDescription("");
+    setEditCategory("");
+    setEditImage(null);
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    setEditLoading(true);
+
+    try {
+      let image_url = editingProject.image_url;
+
+      // Yeni görsel yüklendiyse
+      if (editImage) {
+        const fileExt = editImage.name.split(".").pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("project-images")
+          .upload(fileName, editImage, { upsert: true });
+
+        if (uploadError) {
+          setMessage("Görsel yüklenemedi: " + uploadError.message);
+          setEditLoading(false);
+          return;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("project-images")
+          .getPublicUrl(fileName);
+        image_url = urlData.publicUrl;
+      }
+
+      // Projeyi güncelle
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          title: editTitle,
+          description: editDescription,
+          category_id: editCategory,
+          image_url: image_url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingProject.id);
+
+      if (!error) {
+        setMessage("Proje başarıyla güncellendi!");
+        cancelEditing();
+        fetchProjects();
+      } else {
+        setMessage("Proje güncellenirken hata oluştu!");
+      }
+    } catch (error) {
+      setMessage("Proje güncellenirken hata oluştu!");
+      console.error("Düzenleme hatası:", error);
+    }
+
+    setEditLoading(false);
+  }
+
+  async function deleteProject(projectId) {
+    if (!confirm("Bu projeyi silmek istediğinizden emin misiniz?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectId);
+
+      if (!error) {
+        setMessage("Proje başarıyla silindi!");
+        fetchProjects();
+      } else {
+        setMessage("Proje silinirken hata oluştu!");
+      }
+    } catch (error) {
+      setMessage("Proje silinirken hata oluştu!");
+      console.error("Silme hatası:", error);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 540, margin: "40px auto" }}>
       {/* Üstte Keşfet ve Profilim Butonları */}
@@ -263,6 +467,103 @@ export default function Dashboard() {
         >
           Çıkış
         </button>
+      </div>
+
+      {/* Filtreleme Sistemi */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 2px 12px #7c3aed22",
+          padding: 20,
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 16, color: "#7c3aed" }}>
+          🔍 Filtreleme
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Kategori Filtresi */}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              fontSize: 14,
+              minWidth: 150,
+            }}
+          >
+            <option value="">Tüm Kategoriler</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.icon} {category.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Tarih Filtresi */}
+          <select
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              fontSize: 14,
+              minWidth: 120,
+            }}
+          >
+            <option value="newest">📅 En Yeni</option>
+            <option value="oldest">📅 En Eski</option>
+            <option value="this_week">📅 Bu Hafta</option>
+            <option value="this_month">📅 Bu Ay</option>
+          </select>
+
+          {/* Beğeni Filtresi */}
+          <select
+            value={filterLikes}
+            onChange={(e) => setFilterLikes(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              fontSize: 14,
+              minWidth: 120,
+            }}
+          >
+            <option value="all">❤️ Tümü</option>
+            <option value="most_liked">❤️ En Popüler</option>
+            <option value="least_liked">❤️ En Az Beğenilen</option>
+            <option value="no_likes">❤️ Beğenisi Olmayan</option>
+          </select>
+
+          {/* Filtreleri Temizle */}
+          <button
+            onClick={() => {
+              setFilterCategory("");
+              setFilterDate("newest");
+              setFilterLikes("all");
+            }}
+            style={{
+              padding: "8px 16px",
+              background: "#ef4444",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            🗑️ Temizle
+          </button>
+        </div>
+
+        {/* Filtreleme Sonuç Sayısı */}
+        <div style={{ marginTop: 12, fontSize: 14, color: "#666" }}>
+          {filteredProjects.length} proje bulundu
+        </div>
       </div>
 
       {/* Arama Çubuğu */}
@@ -498,6 +799,24 @@ export default function Dashboard() {
               resize: "vertical",
             }}
           />
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 10,
+              marginBottom: 8,
+              borderRadius: 6,
+              border: "1px solid #ddd",
+              fontSize: 16,
+            }}
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.icon} {category.name}
+              </option>
+            ))}
+          </select>
           <input
             type="file"
             accept="image/*"
@@ -534,8 +853,10 @@ export default function Dashboard() {
       </div>
       <div>
         {loading && <div>Yükleniyor...</div>}
-        {!loading && projects.length === 0 && <div>Henüz hiç proje yok.</div>}
-        {projects.map((p) => (
+        {!loading && filteredProjects.length === 0 && (
+          <div>Bu kriterlere uygun proje bulunamadı.</div>
+        )}
+        {filteredProjects.map((p) => (
           <div
             key={p.id}
             onClick={() => router.push(`/project/${p.id}`)}
@@ -581,6 +902,24 @@ export default function Dashboard() {
               <div style={{ fontSize: 13, color: "#888" }}>
                 {new Date(p.created_at).toLocaleString("tr-TR")}
               </div>
+              {/* Kategori Etiketi */}
+              {p.categories && (
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "4px 8px",
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    marginTop: 8,
+                    background: p.categories.color + "20",
+                    color: p.categories.color,
+                    border: `1px solid ${p.categories.color}40`,
+                  }}
+                >
+                  {p.categories.icon} {p.categories.name}
+                </div>
+              )}
               {/* Beğeni Butonu */}
               <div
                 style={{
@@ -617,11 +956,231 @@ export default function Dashboard() {
                     {p.likes || 0}
                   </span>
                 </button>
+
+                {/* Düzenleme ve Silme Butonları - Sadece Proje Sahibi */}
+                {p.user_id === user?.id && (
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(p);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        fontSize: 14,
+                        color: "#7c3aed",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background = "#f3f4f6")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      ✏️ Düzenle
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteProject(p.id);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        fontSize: 14,
+                        color: "#ef4444",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background = "#fef2f2")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      🗑️ Sil
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Düzenleme Modal */}
+      {editingProject && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 500,
+              width: "90%",
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h2 style={{ color: "#7c3aed", margin: 0 }}>Proje Düzenle</h2>
+              <button
+                onClick={cancelEditing}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 24,
+                  cursor: "pointer",
+                  color: "#666",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit}>
+              <input
+                type="text"
+                placeholder="Proje başlığı"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                required
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  marginBottom: 8,
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                }}
+              />
+              <textarea
+                placeholder="Açıklama (isteğe bağlı)"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  marginBottom: 8,
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                  resize: "vertical",
+                }}
+              />
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  marginBottom: 8,
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                  fontSize: 16,
+                }}
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.icon} {category.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Mevcut Görsel */}
+              {editingProject.image_url && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: "#666", marginBottom: 4 }}>
+                    Mevcut Görsel:
+                  </div>
+                  <img
+                    src={editingProject.image_url}
+                    alt="mevcut görsel"
+                    style={{
+                      width: 100,
+                      height: 100,
+                      objectFit: "cover",
+                      borderRadius: 8,
+                      border: "1px solid #ddd",
+                    }}
+                  />
+                </div>
+              )}
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setEditImage(e.target.files[0])}
+                style={{ marginBottom: 12 }}
+              />
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: "#7c3aed",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    cursor: "pointer",
+                  }}
+                >
+                  {editLoading ? "Güncelleniyor..." : "Güncelle"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: "#6b7280",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    cursor: "pointer",
+                  }}
+                >
+                  İptal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
