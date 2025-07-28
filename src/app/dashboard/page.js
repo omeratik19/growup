@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import NotificationBell from "../../components/NotificationBell";
 
 export default function Dashboard() {
   const [title, setTitle] = useState("");
@@ -401,13 +402,14 @@ export default function Dashboard() {
 
   return (
     <div style={{ maxWidth: 540, margin: "40px auto" }}>
-      {/* Üstte Keşfet ve Profilim Butonları */}
+      {/* Üstte Keşfet, Bildirimler ve Profilim Butonları */}
       <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
           gap: 12,
           marginBottom: 24,
+          alignItems: "center",
         }}
       >
         <button
@@ -429,6 +431,31 @@ export default function Dashboard() {
         >
           Keşfet
         </button>
+
+        {/* Bildirim Zili */}
+        <NotificationBell />
+
+        {/* Bildirimler Sayfası Linki */}
+        <button
+          onClick={() => router.push("/notifications")}
+          style={{
+            background: "#f8fafc",
+            color: "#7c3aed",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontWeight: 600,
+            fontSize: 14,
+            boxShadow: "0 2px 12px #7c3aed22",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "#f8fafc")}
+        >
+          Tüm Bildirimler
+        </button>
+
         <button
           onClick={() => router.push("/profile")}
           style={{
