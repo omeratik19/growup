@@ -26,6 +26,13 @@ export default function ExplorePage() {
   const [reelMsg, setReelMsg] = useState("");
   const reelsContainerRef = useRef(null);
 
+  // Post oluşturma için state'ler
+  const [postContent, setPostContent] = useState("");
+  const [postImage, setPostImage] = useState(null);
+  const [postImagePreview, setPostImagePreview] = useState(null);
+  const [postLoading, setPostLoading] = useState(false);
+  const [postMsg, setPostMsg] = useState("");
+
   useEffect(() => {
     fetchPostsAndProfiles();
     fetchUserLikes();
@@ -445,6 +452,92 @@ export default function ExplorePage() {
     }
   }
 
+  // Post resim seçimi
+  function handlePostImageSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      setPostImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setPostImagePreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Post oluşturma
+  async function handlePostSubmit(e) {
+    e.preventDefault();
+    if (!postContent.trim() && !postImage) {
+      setPostMsg("Lütfen bir metin veya resim ekleyin.");
+      return;
+    }
+
+    setPostLoading(true);
+    setPostMsg("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setPostMsg("Giriş yapmanız gerekiyor.");
+        setPostLoading(false);
+        return;
+      }
+
+      let imageUrl = null;
+      if (postImage) {
+        const fileExt = postImage.name.split(".").pop();
+        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("post-media")
+          .upload(fileName, postImage, { upsert: true });
+
+        if (uploadError) {
+          setPostMsg("Resim yüklenemedi: " + uploadError.message);
+          setPostLoading(false);
+          return;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("post-media")
+          .getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
+
+      console.log("Post verisi:", {
+        user_id: user.id,
+        content: postContent.trim(),
+        media_url: imageUrl,
+        type: "post",
+      });
+
+      const { data, error } = await supabase.from("posts").insert({
+        user_id: user.id,
+        content: postContent.trim(),
+        media_url: imageUrl,
+        type: "post",
+      });
+
+      console.log("Post insert sonucu:", { data, error });
+
+      if (!error) {
+        setPostMsg("Post başarıyla paylaşıldı!");
+        setPostContent("");
+        setPostImage(null);
+        setPostImagePreview(null);
+        fetchPostsAndProfiles();
+      } else {
+        console.error("Post insert hatası:", error);
+        setPostMsg("Post paylaşılırken hata oluştu: " + error.message);
+      }
+    } catch (error) {
+      console.error("Post oluşturma hatası:", error);
+      setPostMsg("Bir hata oluştu.");
+    } finally {
+      setPostLoading(false);
+    }
+  }
+
   async function handleReelSubmit(e) {
     e.preventDefault();
     setReelMsg("");
@@ -750,6 +843,15 @@ export default function ExplorePage() {
                       </div>
                       {post.media_url && (
                         <div style={{ marginTop: 8 }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#666",
+                              marginBottom: 4,
+                            }}
+                          >
+                            DEBUG: {post.media_url}
+                          </div>
                           {post.type === "reel" ? (
                             <video
                               src={post.media_url}
@@ -771,6 +873,13 @@ export default function ExplorePage() {
                                 objectFit: "cover",
                               }}
                               alt="Post media"
+                              onError={(e) => {
+                                console.error(
+                                  "Resim yüklenemedi:",
+                                  post.media_url
+                                );
+                                e.target.style.display = "none";
+                              }}
                             />
                           )}
                         </div>
@@ -861,6 +970,151 @@ export default function ExplorePage() {
           🎬 Reels
         </button>
       </div>
+
+      {/* Post Oluşturma Formu */}
+      {tab === "post" && (
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 16,
+            boxShadow: "0 4px 20px rgba(124,58,237,0.1)",
+            padding: 24,
+            marginBottom: 32,
+            border: "1px solid rgba(124,58,237,0.05)",
+          }}
+        >
+          <h3 style={{ color: "#7c3aed", marginBottom: 16, fontWeight: 600 }}>
+            📝 Yeni Post Oluştur
+          </h3>
+          <form onSubmit={handlePostSubmit}>
+            <textarea
+              placeholder="Ne düşünüyorsun?"
+              value={postContent}
+              onChange={(e) => setPostContent(e.target.value)}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: 12,
+                border: "1px solid #e2e8f0",
+                marginBottom: 16,
+                resize: "vertical",
+                fontSize: 14,
+                outline: "none",
+                transition: "border-color 0.3s ease",
+              }}
+            />
+
+            {/* Resim Yükleme */}
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePostImageSelect}
+                style={{ display: "none" }}
+                id="post-image-upload"
+              />
+              <label
+                htmlFor="post-image-upload"
+                style={{
+                  display: "inline-block",
+                  padding: "12px 20px",
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  marginRight: 12,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  transition: "all 0.3s ease",
+                }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = "#e2e8f0")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.background = "#f8fafc")
+                }
+              >
+                📷 Resim Ekle
+              </label>
+              {postImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostImage(null);
+                    setPostImagePreview(null);
+                  }}
+                  style={{
+                    padding: "12px 20px",
+                    backgroundColor: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 500,
+                  }}
+                >
+                  ❌ Kaldır
+                </button>
+              )}
+            </div>
+
+            {/* Resim Önizleme */}
+            {postImagePreview && (
+              <div style={{ marginBottom: 16 }}>
+                <img
+                  src={postImagePreview}
+                  alt="Önizleme"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "200px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={postLoading || (!postContent.trim() && !postImage)}
+              style={{
+                width: "100%",
+                padding: "14px 24px",
+                background:
+                  postLoading || (!postContent.trim() && !postImage)
+                    ? "#cbd5e1"
+                    : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                fontWeight: 600,
+                fontSize: 16,
+                cursor:
+                  postLoading || (!postContent.trim() && !postImage)
+                    ? "not-allowed"
+                    : "pointer",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {postLoading ? "Paylaşılıyor..." : "📤 Post Paylaş"}
+            </button>
+          </form>
+          {postMsg && (
+            <div
+              style={{
+                color: postMsg.includes("başarı") ? "#10b981" : "#ef4444",
+                marginTop: 12,
+                fontSize: 14,
+                textAlign: "center",
+              }}
+            >
+              {postMsg}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Reels Video Ekleme Formu */}
       {tab === "reel" && (
