@@ -34,9 +34,19 @@ export default function ChatSystem() {
 
   useEffect(() => {
     if (!user) return;
+    console.log("ChatSystem useEffect başladı, user:", user.id);
     fetchConversations();
 
-    // Gerçek zamanlı mesaj dinleme
+    // Polling sistemi - her 2 saniyede bir kontrol et
+    const pollingInterval = setInterval(() => {
+      if (currentConversation && messages.length > 0) {
+        console.log("🔄 Polling: Mesajlar kontrol ediliyor...");
+        fetchMessages(currentConversation.id);
+      }
+    }, 2000);
+
+    // Gerçek zamanlı mesaj dinleme - tüm mesajları dinle
+    console.log("Real-time subscription kuruluyor...");
     const channel = supabase
       .channel("chat_system")
       .on(
@@ -47,19 +57,57 @@ export default function ChatSystem() {
           table: "messages",
         },
         (payload) => {
-          console.log("Mesaj değişikliği:", payload);
-          if (currentConversation) {
-            fetchMessages(currentConversation.id);
+          console.log("🎯 REAL-TIME MESAJ ALINDI:", payload);
+          console.log("Event type:", payload.eventType);
+          console.log("New data:", payload.new);
+          console.log("Current conversation:", currentConversation?.id);
+
+          // Yeni mesaj geldiğinde ve mevcut sohbetle ilgiliyse güncelle
+          if (payload.eventType === "INSERT" && currentConversation) {
+            const newMessage = payload.new;
+            console.log(
+              "Yeni mesaj conversation_id:",
+              newMessage.conversation_id
+            );
+            console.log("Current conversation_id:", currentConversation.id);
+
+            if (newMessage.conversation_id === currentConversation.id) {
+              console.log("✅ Mesaj mevcut sohbete ait, UI güncelleniyor...");
+              setMessages((prevMessages) => {
+                // Mesaj zaten var mı kontrol et (daha sıkı kontrol)
+                const exists = prevMessages.find(
+                  (msg) =>
+                    msg.id === newMessage.id &&
+                    msg.content === newMessage.content
+                );
+                if (exists) {
+                  console.log("⚠️ Mesaj zaten mevcut, güncelleme yapılmıyor");
+                  return prevMessages;
+                }
+
+                console.log("➕ Yeni mesaj UI'a ekleniyor");
+                return [...prevMessages, newMessage];
+              });
+            } else {
+              console.log("❌ Mesaj farklı sohbete ait, güncelleme yapılmıyor");
+            }
           }
-          fetchConversations(); // Sohbet listesini güncelle
+
+          // Sohbet listesini güncelle
+          console.log("🔄 Sohbet listesi güncelleniyor...");
+          fetchConversations();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Real-time subscription durumu:", status);
+      });
 
     return () => {
+      console.log("🔌 Real-time subscription kapatılıyor...");
+      clearInterval(pollingInterval); // Polling'i durdur
       supabase.removeChannel(channel);
     };
-  }, [user, currentConversation]);
+  }, [user, currentConversation?.id]);
 
   async function fetchConversations() {
     if (!user) return;
@@ -138,8 +186,28 @@ export default function ChatSystem() {
       console.log("fetchMessages sonucu:", { data, error });
 
       if (!error && data) {
-        setMessages(data);
-        console.log("Mesajlar yüklendi:", data.length);
+        // Sender bilgilerini manuel olarak ekle
+        const messagesWithSenders = await Promise.all(
+          data.map(async (message) => {
+            const { data: senderData } = await supabase
+              .from("profiles")
+              .select("id, username, avatar_url")
+              .eq("id", message.sender_id)
+              .single();
+
+            return {
+              ...message,
+              sender: senderData || {
+                id: message.sender_id,
+                username: "Bilinmeyen Kullanıcı",
+                avatar_url: null,
+              },
+            };
+          })
+        );
+
+        setMessages(messagesWithSenders);
+        console.log("Mesajlar yüklendi:", messagesWithSenders.length);
 
         // Mesajları okundu olarak işaretle
         const unreadMessages = data.filter(
@@ -186,9 +254,19 @@ export default function ChatSystem() {
 
       if (!error && data) {
         setNewMessage("");
-        // Yeni mesajı hemen ekle
-        setMessages((prev) => [...prev, data[0]]);
-        console.log("Mesaj başarıyla gönderildi!");
+
+        // Sender bilgisini manuel olarak ekle
+        const newMessageWithSender = {
+          ...data[0],
+          sender: {
+            id: user.id,
+            username: user.email?.split("@")[0] || "user",
+            avatar_url: null,
+          },
+        };
+
+        setMessages((prev) => [...prev, newMessageWithSender]);
+        console.log("Mesaj başarıyla gönderildi ve UI'da gösterildi!");
 
         // Sohbet listesini güncelle
         fetchConversations();
@@ -793,9 +871,9 @@ export default function ChatSystem() {
                         gap: "8px",
                       }}
                     >
-                      {messages.map((message) => (
+                      {messages.map((message, index) => (
                         <div
-                          key={message.id}
+                          key={`${message.id}-${index}`}
                           style={{
                             alignSelf:
                               message.sender_id === user.id
