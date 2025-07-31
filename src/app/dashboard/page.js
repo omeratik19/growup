@@ -32,6 +32,11 @@ export default function Dashboard() {
   const [editImage, setEditImage] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showPostForm, setShowPostForm] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -70,7 +75,28 @@ export default function Dashboard() {
       `
       )
       .order("created_at", { ascending: false });
-    if (!error) setProjects(data);
+
+    if (!error && data) {
+      // Her proje için kullanıcı bilgisini al
+      const projectsWithUsers = await Promise.all(
+        data.map(async (project) => {
+          if (project.user_id) {
+            const { data: userData } = await supabase
+              .from("profiles")
+              .select("username, avatar_url")
+              .eq("id", project.user_id)
+              .single();
+
+            return {
+              ...project,
+              userProfile: userData,
+            };
+          }
+          return project;
+        })
+      );
+      setProjects(projectsWithUsers);
+    }
     setLoading(false);
   }
 
@@ -402,650 +428,926 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ maxWidth: 540, margin: "40px auto" }}>
-      {/* Üstte Keşfet, Bildirimler ve Profilim Butonları */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 12,
-          marginBottom: 24,
-          alignItems: "center",
-        }}
-      >
-        <button
-          onClick={() => router.push("/explore")}
-          style={{
-            background: "#ede9fe",
-            color: "#7c3aed",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 24px",
-            fontWeight: 600,
-            fontSize: 16,
-            boxShadow: "0 2px 12px #7c3aed22",
-            cursor: "pointer",
-            transition: "background 0.2s",
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.background = "#d1c4e9")}
-          onMouseOut={(e) => (e.currentTarget.style.background = "#ede9fe")}
-        >
-          Keşfet
-        </button>
-
-        {/* Bildirim Zili */}
-        <NotificationBell />
-
-        {/* Mesajlaşma Sistemi */}
-        <ChatSystem />
-
-        {/* Bildirimler Sayfası Linki */}
-        <button
-          onClick={() => router.push("/notifications")}
-          style={{
-            background: "#f8fafc",
-            color: "#7c3aed",
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            padding: "10px 16px",
-            fontWeight: 600,
-            fontSize: 14,
-            boxShadow: "0 2px 12px #7c3aed22",
-            cursor: "pointer",
-            transition: "background 0.2s",
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-          onMouseOut={(e) => (e.currentTarget.style.background = "#f8fafc")}
-        >
-          Tüm Bildirimler
-        </button>
-
-        <button
-          onClick={() => router.push("/profile")}
-          style={{
-            background: "#7c3aed",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 24px",
-            fontWeight: 600,
-            fontSize: 16,
-            boxShadow: "0 2px 12px #7c3aed22",
-            cursor: "pointer",
-            transition: "background 0.2s",
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.background = "#5b21b6")}
-          onMouseOut={(e) => (e.currentTarget.style.background = "#7c3aed")}
-        >
-          Profilim
-        </button>
-        <button
-          onClick={handleLogout}
-          style={{
-            background: "#ef4444",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 24px",
-            fontWeight: 600,
-            fontSize: 16,
-            boxShadow: "0 2px 12px #ef444422",
-            cursor: "pointer",
-            transition: "background 0.2s",
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.background = "#dc2626")}
-          onMouseOut={(e) => (e.currentTarget.style.background = "#ef4444")}
-        >
-          Çıkış
-        </button>
-      </div>
-
-      {/* Filtreleme Sistemi */}
-      <div
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f8fafc",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      }}
+    >
+      {/* Header */}
+      <header
         style={{
           background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 2px 12px #7c3aed22",
-          padding: 20,
-          marginBottom: 24,
+          borderBottom: "1px solid #e5e7eb",
+          padding: "16px 24px",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 16, color: "#7c3aed" }}>
-          🔍 Filtreleme
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {/* Kategori Filtresi */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            maxWidth: "1200px",
+            margin: "0 auto",
+          }}
+        >
+          {/* Logo */}
+          <div
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              fontSize: 14,
-              minWidth: 150,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "24px",
+              fontWeight: "bold",
+              color: "#7c3aed",
             }}
           >
-            <option value="">Tüm Kategoriler</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.icon} {category.name}
-              </option>
-            ))}
-          </select>
+            <span style={{ fontSize: "20px" }}>🌱</span>
+            <span>Growhub</span>
+          </div>
 
-          {/* Tarih Filtresi */}
-          <select
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              fontSize: 14,
-              minWidth: 120,
-            }}
-          >
-            <option value="newest">📅 En Yeni</option>
-            <option value="oldest">📅 En Eski</option>
-            <option value="this_week">📅 Bu Hafta</option>
-            <option value="this_month">📅 Bu Ay</option>
-          </select>
-
-          {/* Beğeni Filtresi */}
-          <select
-            value={filterLikes}
-            onChange={(e) => setFilterLikes(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              fontSize: 14,
-              minWidth: 120,
-            }}
-          >
-            <option value="all">❤️ Tümü</option>
-            <option value="most_liked">❤️ En Popüler</option>
-            <option value="least_liked">❤️ En Az Beğenilen</option>
-            <option value="no_likes">❤️ Beğenisi Olmayan</option>
-          </select>
-
-          {/* Filtreleri Temizle */}
-          <button
-            onClick={() => {
-              setFilterCategory("");
-              setFilterDate("newest");
-              setFilterLikes("all");
-            }}
-            style={{
-              padding: "8px 16px",
-              background: "#ef4444",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 14,
-              cursor: "pointer",
-            }}
-          >
-            🗑️ Temizle
-          </button>
-        </div>
-
-        {/* Filtreleme Sonuç Sayısı */}
-        <div style={{ marginTop: 12, fontSize: 14, color: "#666" }}>
-          {filteredProjects.length} proje bulundu
-        </div>
-      </div>
-
-      {/* Arama Çubuğu */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 2px 12px #7c3aed22",
-          padding: 20,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="text"
-            placeholder="Kullanıcı veya proje ara..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") handleSearch();
-            }}
+          {/* Search Bar */}
+          <div
             style={{
               flex: 1,
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              fontSize: 16,
-            }}
-          />
-          <button
-            onClick={handleSearch}
-            disabled={isSearching}
-            style={{
-              padding: "12px 20px",
-              background: "#7c3aed",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: 16,
+              maxWidth: "500px",
+              margin: "0 24px",
+              position: "relative",
             }}
           >
-            {isSearching ? "🔍" : "🔍"}
-          </button>
-        </div>
+            <input
+              type="text"
+              placeholder="Kullanıcı, proje veya teknoloji ara..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
 
-        {/* Arama Sonuçları */}
-        {(searchResults.users.length > 0 ||
-          searchResults.projects.length > 0) && (
-          <div style={{ marginTop: 16 }}>
-            {/* Kullanıcı Sonuçları */}
-            {searchResults.users.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div
-                  style={{ fontWeight: 600, marginBottom: 8, color: "#7c3aed" }}
-                >
-                  Kullanıcılar ({searchResults.users.length})
-                </div>
-                {searchResults.users.map((user) => (
-                  <div
-                    key={user.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "12px",
-                      background: "#f8f9fa",
-                      borderRadius: 8,
-                      marginBottom: 8,
-                      cursor: "pointer",
-                    }}
-                    onClick={() => router.push(`/profile/${user.id}`)}
-                  >
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        background:
-                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#fff",
-                        fontSize: 16,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {user.avatar_url ? (
-                        <img
-                          src={user.avatar_url}
-                          alt="pp"
-                          style={{
-                            width: 40,
-                            height: 40,
-                            objectFit: "cover",
-                            borderRadius: "50%",
-                          }}
-                        />
-                      ) : (
-                        user.username?.[0]?.toUpperCase() ||
-                        user.id.slice(0, 2).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: "#374151" }}>
-                        {user.username || user.id.slice(0, 8).toUpperCase()}
-                      </div>
-                      {user.bio && (
-                        <div style={{ fontSize: 14, color: "#6b7280" }}>
-                          {user.bio.length > 50
-                            ? user.bio.substring(0, 50) + "..."
-                            : user.bio}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                // Önceki timeout'u temizle
+                if (searchTimeout) {
+                  clearTimeout(searchTimeout);
+                }
 
-            {/* Proje Sonuçları */}
-            {searchResults.projects.length > 0 && (
-              <div>
-                <div
-                  style={{ fontWeight: 600, marginBottom: 8, color: "#7c3aed" }}
-                >
-                  Projeler ({searchResults.projects.length})
-                </div>
-                {searchResults.projects.map((project) => (
-                  <div
-                    key={project.id}
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      padding: "12px",
-                      background: "#f8f9fa",
-                      borderRadius: 8,
-                      marginBottom: 8,
-                      cursor: "pointer",
-                    }}
-                    onClick={() => router.push(`/project/${project.id}`)}
-                  >
-                    {project.image_url && (
-                      <img
-                        src={project.image_url}
-                        alt="proje görseli"
-                        style={{
-                          width: 60,
-                          height: 60,
-                          objectFit: "cover",
-                          borderRadius: 8,
-                        }}
-                      />
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: "#374151" }}>
-                        {project.title}
-                      </div>
-                      <div
-                        style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}
-                      >
-                        {project.description &&
-                          (project.description.length > 80
-                            ? project.description.substring(0, 80) + "..."
-                            : project.description)}
-                      </div>
-                      <div
-                        style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
-                      >
-                        {new Date(project.created_at).toLocaleDateString(
-                          "tr-TR"
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                if (e.target.value.trim()) {
+                  // 300ms sonra arama yap
+                  const timeout = setTimeout(() => {
+                    handleSearch();
+                  }, 300);
+                  setSearchTimeout(timeout);
+                } else {
+                  setSearchResults({ users: [], projects: [] });
+                }
+              }}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") handleSearch();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "24px",
+                border: "1px solid #e5e7eb",
+                fontSize: "14px",
+                background: "#f9fafb",
+                outline: "none",
+              }}
+            />
 
-        {searchQuery &&
-          !isSearching &&
-          searchResults.users.length === 0 &&
-          searchResults.projects.length === 0 && (
-            <div
-              style={{ marginTop: 16, textAlign: "center", color: "#6b7280" }}
-            >
-              🔍 "{searchQuery}" için sonuç bulunamadı
-            </div>
-          )}
-      </div>
-
-      {/* Proje Ekleme Kutusu */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 2px 12px #7c3aed22",
-          padding: 24,
-          marginBottom: 32,
-        }}
-      >
-        <h2 style={{ color: "#7c3aed", marginBottom: 12 }}>Proje Ekle</h2>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Proje başlığı"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 8,
-              borderRadius: 6,
-              border: "1px solid #ddd",
-            }}
-          />
-          <textarea
-            placeholder="Açıklama (isteğe bağlı)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 8,
-              borderRadius: 6,
-              border: "1px solid #ddd",
-              resize: "vertical",
-            }}
-          />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 8,
-              borderRadius: 6,
-              border: "1px solid #ddd",
-              fontSize: 16,
-            }}
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.icon} {category.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImage(e.target.files[0])}
-            style={{ marginBottom: 12 }}
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#7c3aed",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontWeight: 600,
-              fontSize: 16,
-            }}
-          >
-            {loading ? "Ekleniyor..." : "Projeni Paylaş"}
-          </button>
-        </form>
-        {message && (
-          <div
-            style={{
-              color: message.includes("başarı") ? "green" : "red",
-              marginTop: 10,
-            }}
-          >
-            {message}
-          </div>
-        )}
-      </div>
-      <div>
-        {loading && <div>Yükleniyor...</div>}
-        {!loading && filteredProjects.length === 0 && (
-          <div>Bu kriterlere uygun proje bulunamadı.</div>
-        )}
-        {filteredProjects.map((p) => (
-          <div
-            key={p.id}
-            onClick={() => router.push(`/project/${p.id}`)}
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              boxShadow: "0 2px 12px #7c3aed22",
-              padding: 20,
-              marginBottom: 20,
-              display: "flex",
-              gap: 16,
-              cursor: "pointer",
-              transition: "transform 0.2s, box-shadow 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 4px 20px #7c3aed33";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 2px 12px #7c3aed22";
-            }}
-          >
-            {p.image_url && (
-              <img
-                src={p.image_url}
-                alt="proje görseli"
-                style={{
-                  width: 80,
-                  height: 80,
-                  objectFit: "cover",
-                  borderRadius: 8,
-                }}
-              />
-            )}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 18, color: "#7c3aed" }}>
-                {p.title}
-              </div>
-              <div style={{ color: "#444", margin: "6px 0 4px 0" }}>
-                {p.description}
-              </div>
-              <div style={{ fontSize: 13, color: "#888" }}>
-                {new Date(p.created_at).toLocaleString("tr-TR")}
-              </div>
-              {/* Kategori Etiketi */}
-              {p.categories && (
-                <div
-                  style={{
-                    display: "inline-block",
-                    padding: "4px 8px",
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginTop: 8,
-                    background: p.categories.color + "20",
-                    color: p.categories.color,
-                    border: `1px solid ${p.categories.color}40`,
-                  }}
-                >
-                  {p.categories.icon} {p.categories.name}
-                </div>
-              )}
-              {/* Beğeni Butonu */}
+            {/* Arama Sonuçları Dropdown */}
+            {searchQuery && (
               <div
                 style={{
-                  marginTop: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "12px",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                  zIndex: 1000,
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                  marginTop: "8px",
                 }}
               >
-                <button
-                  onClick={(e) => toggleLike(p.id, e)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    transition: "background 0.2s",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.background = "#f3f4f6")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
-                  <span style={{ fontSize: 18 }}>
-                    {userLikes.has(p.id) ? "❤️" : "🤍"}
-                  </span>
-                  <span style={{ fontSize: 14, color: "#666" }}>
-                    {p.likes || 0}
-                  </span>
-                </button>
+                {/* Kullanıcı Sonuçları */}
+                {searchResults.users.length > 0 && (
+                  <div>
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        borderBottom: "1px solid #f3f4f6",
+                      }}
+                    >
+                      👥 Kullanıcılar
+                    </div>
+                    {searchResults.users.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => {
+                          router.push(`/profile/${user.id}`);
+                          setSearchQuery("");
+                          setSearchResults({ users: [], projects: [] });
+                        }}
+                        style={{
+                          padding: "12px 16px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          borderBottom: "1px solid #f3f4f6",
+                        }}
+                        onMouseOver={(e) =>
+                          (e.currentTarget.style.background = "#f9fafb")
+                        }
+                        onMouseOut={(e) =>
+                          (e.currentTarget.style.background = "#fff")
+                        }
+                      >
+                        <div
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            background: "#7c3aed",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {user.username?.[0]?.toUpperCase() || "U"}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            {user.username || "Kullanıcı"}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                            {user.email}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                {/* Düzenleme ve Silme Butonları - Sadece Proje Sahibi */}
-                {p.user_id === user?.id && (
-                  <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(p);
-                      }}
+                {/* Proje Sonuçları */}
+                {searchResults.projects.length > 0 && (
+                  <div>
+                    <div
                       style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        fontSize: 14,
-                        color: "#7c3aed",
-                        transition: "background 0.2s",
+                        padding: "12px 16px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        borderBottom: "1px solid #f3f4f6",
                       }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.background = "#f3f4f6")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
                     >
-                      ✏️ Düzenle
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteProject(p.id);
-                      }}
+                      🚀 Projeler
+                    </div>
+                    {searchResults.projects.map((project) => (
+                      <div
+                        key={project.id}
+                        onClick={() => {
+                          router.push(`/project/${project.id}`);
+                          setSearchQuery("");
+                          setSearchResults({ users: [], projects: [] });
+                        }}
+                        style={{
+                          padding: "12px 16px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          borderBottom: "1px solid #f3f4f6",
+                        }}
+                        onMouseOver={(e) =>
+                          (e.currentTarget.style.background = "#f9fafb")
+                        }
+                        onMouseOut={(e) =>
+                          (e.currentTarget.style.background = "#fff")
+                        }
+                      >
+                        {project.image_url && (
+                          <img
+                            src={project.image_url}
+                            alt={project.title}
+                            style={{
+                              width: "40px",
+                              height: "40px",
+                              borderRadius: "8px",
+                              objectFit: "cover",
+                            }}
+                          />
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            {project.title}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                            {project.description?.substring(0, 50)}...
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Sonuç Bulunamadı */}
+                {searchQuery &&
+                  searchResults.users.length === 0 &&
+                  searchResults.projects.length === 0 &&
+                  !isSearching && (
+                    <div
                       style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        fontSize: 14,
-                        color: "#ef4444",
-                        transition: "background 0.2s",
+                        padding: "24px 16px",
+                        textAlign: "center",
+                        color: "#6b7280",
+                        fontSize: "14px",
                       }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.background = "#fef2f2")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
                     >
-                      🗑️ Sil
-                    </button>
+                      🔍 "{searchQuery}" için sonuç bulunamadı
+                    </div>
+                  )}
+
+                {/* Arama Yükleniyor */}
+                {isSearching && (
+                  <div
+                    style={{
+                      padding: "24px 16px",
+                      textAlign: "center",
+                      color: "#6b7280",
+                      fontSize: "14px",
+                    }}
+                  >
+                    🔍 Aranıyor...
                   </div>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <button
+              onClick={() => router.push("/explore")}
+              style={{
+                background: "#ede9fe",
+                color: "#7c3aed",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = "#d1c4e9")
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = "#ede9fe")}
+            >
+              🔍 Keşfet
+            </button>
+            <button
+              onClick={() => setTitle("")}
+              style={{
+                background: "#7c3aed",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = "#6d28d9")
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = "#7c3aed")}
+            >
+              + Proje Ekle
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                background: "#ef4444",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = "#dc2626")
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = "#ef4444")}
+            >
+              Çıkış Yap
+            </button>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              {user?.email ? user.email.split("@")[0] : "atkcodes"}
             </div>
           </div>
-        ))}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div
+        style={{
+          display: "flex",
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "24px",
+          gap: "24px",
+        }}
+      >
+        {/* Left Sidebar - Categories */}
+        <div
+          style={{
+            width: "250px",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Kategoriler
+            </h3>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
+              <button
+                onClick={() => setFilterCategory("")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: filterCategory === "" ? "#f3e8ff" : "transparent",
+                  color: filterCategory === "" ? "#7c3aed" : "#374151",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: filterCategory === "" ? "600" : "500",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span>🏠</span>
+                <span>Tümü</span>
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setFilterCategory(category.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background:
+                      filterCategory === category.id
+                        ? "#f3e8ff"
+                        : "transparent",
+                    color:
+                      filterCategory === category.id ? "#7c3aed" : "#374151",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: filterCategory === category.id ? "600" : "500",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <span>{category.icon}</span>
+                  <span>{category.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div
+          style={{
+            flex: 1,
+            maxWidth: "600px",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "24px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              marginBottom: "24px",
+            }}
+          >
+            <h2
+              style={{
+                margin: "0 0 20px 0",
+                fontSize: "20px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Son Paylaşımlar
+            </h2>
+
+            {/* Filter Tabs */}
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              {["all", "projects", "posts"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: activeTab === tab ? "#7c3aed" : "transparent",
+                    color: activeTab === tab ? "#fff" : "#6b7280",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {tab === "all"
+                    ? "Tümü"
+                    : tab === "projects"
+                    ? "Projeler"
+                    : "Gönderiler"}
+                </button>
+              ))}
+            </div>
+
+            {/* Share Content Section */}
+            <div
+              style={{
+                background: "#f9fafb",
+                borderRadius: "12px",
+                padding: "20px",
+                marginBottom: "24px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  marginBottom: "16px",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setShowProjectForm(true);
+                    setShowPostForm(false);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: showProjectForm ? "#7c3aed" : "#e5e7eb",
+                    color: showProjectForm ? "#fff" : "#374151",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  Proje Paylaş
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPostForm(true);
+                    setShowProjectForm(false);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: showPostForm ? "#7c3aed" : "#e5e7eb",
+                    color: showPostForm ? "#fff" : "#374151",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  Gönderi Paylaş
+                </button>
+              </div>
+
+              {showProjectForm && (
+                <form onSubmit={handleSubmit}>
+                  <input
+                    type="text"
+                    placeholder="Proje başlığı"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                    }}
+                  />
+                  <textarea
+                    placeholder="Proje açıklaması (isteğe bağlı)"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                      resize: "vertical",
+                    }}
+                  />
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.icon} {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setImage(e.target.files[0])}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      marginBottom: "16px",
+                      fontSize: "14px",
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      background: "#7c3aed",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "16px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.background = "#6d28d9")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.background = "#7c3aed")
+                    }
+                  >
+                    {loading ? "Ekleniyor..." : "Projeni Paylaş"}
+                  </button>
+                </form>
+              )}
+
+              {showPostForm && (
+                <div style={{ textAlign: "center", color: "#6b7280" }}>
+                  Gönderi paylaşma özelliği yakında gelecek! 🚀
+                </div>
+              )}
+            </div>
+
+            {/* Content Feed */}
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+            >
+              {loading && (
+                <div style={{ textAlign: "center", color: "#6b7280" }}>
+                  Yükleniyor...
+                </div>
+              )}
+              {!loading && filteredProjects.length === 0 && (
+                <div style={{ textAlign: "center", color: "#6b7280" }}>
+                  Bu kriterlere uygun proje bulunamadı.
+                </div>
+              )}
+              {filteredProjects.map((project) => (
+                <div
+                  key={project.id}
+                  onClick={() => router.push(`/project/${project.id}`)}
+                  style={{
+                    padding: "16px",
+                    background: "#f9fafb",
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = "#f3f4f6";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 12px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = "#f9fafb";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "12px",
+                    }}
+                  >
+                    {/* Proje Görseli */}
+                    {project.image_url && (
+                      <img
+                        src={project.image_url}
+                        alt={project.title}
+                        style={{
+                          width: "160px",
+                          height: "160px",
+                          borderRadius: "12px",
+                          objectFit: "cover",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "40px",
+                            height: "40px",
+                            borderRadius: "50%",
+                            background: "#7c3aed",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: "16px",
+                            fontWeight: "600",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {project.userProfile?.avatar_url ? (
+                            <img
+                              src={project.userProfile.avatar_url}
+                              alt="avatar"
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            (
+                              project.userProfile?.username?.[0] || "U"
+                            ).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            {project.userProfile?.username || "Kullanıcı"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#6b7280",
+                            }}
+                          >
+                            {new Date(project.created_at).toLocaleString(
+                              "tr-TR"
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: "600",
+                          color: "#374151",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {project.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        {project.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div
+          style={{
+            width: "250px",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              marginBottom: "16px",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Trend Projeler
+            </h3>
+            <div
+              style={{
+                textAlign: "center",
+                color: "#6b7280",
+                fontSize: "14px",
+                padding: "20px 0",
+              }}
+            >
+              Henüz trend proje yok
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+              }}
+            >
+              Önerilen Kullanıcılar
+            </h3>
+            <div
+              style={{
+                textAlign: "center",
+                color: "#6b7280",
+                fontSize: "14px",
+                padding: "20px 0",
+              }}
+            >
+              Henüz önerilen kullanıcı yok
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Chat İkonu - Sağ Alt Köşe */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "24px",
+          right: "24px",
+          zIndex: 1000,
+        }}
+      >
+        <button
+          onClick={() => setIsOpen(true)}
+          style={{
+            width: "60px",
+            height: "60px",
+            borderRadius: "50%",
+            background: "#7c3aed",
+            border: "none",
+            color: "#fff",
+            fontSize: "24px",
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(124, 58, 237, 0.3)",
+            transition: "all 0.2s",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = "#6d28d9";
+            e.currentTarget.style.transform = "scale(1.1)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = "#7c3aed";
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+        >
+          💬
+        </button>
+      </div>
+
+      {/* Chat Sistemi */}
+      <ChatSystem isOpen={isOpen} setIsOpen={setIsOpen} />
 
       {/* Düzenleme Modal */}
       {editingProject && (

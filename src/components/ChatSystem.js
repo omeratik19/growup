@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-export default function ChatSystem() {
+export default function ChatSystem({ isOpen, setIsOpen }) {
   console.log("ChatSystem component render ediliyor");
 
   const [conversations, setConversations] = useState([]);
@@ -15,7 +15,6 @@ export default function ChatSystem() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [user, setUser] = useState(null);
-  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showUserList, setShowUserList] = useState(false);
@@ -400,45 +399,6 @@ export default function ChatSystem() {
 
   return (
     <div style={{ position: "relative" }}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          position: "relative",
-          padding: "8px",
-          borderRadius: "50%",
-          transition: "background 0.2s",
-        }}
-        onMouseOver={(e) => (e.currentTarget.style.background = "#f3f4f6")}
-        onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
-      >
-        <span style={{ fontSize: "24px" }}>💬</span>
-        {unreadCount > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              background: "#ef4444",
-              color: "#fff",
-              borderRadius: "50%",
-              width: "20px",
-              height: "20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "12px",
-              fontWeight: "bold",
-              minWidth: "20px",
-            }}
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </div>
-        )}
-      </button>
-
       {isOpen && (
         <div
           style={{
