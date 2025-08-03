@@ -738,6 +738,26 @@ export default function Dashboard() {
               🔍 Keşfet
             </button>
             <button
+              onClick={() => router.push("/music")}
+              style={{
+                background: "#fef3c7",
+                color: "#d97706",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = "#fde68a")
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = "#fef3c7")}
+            >
+              🎵 Müzik
+            </button>
+            <button
               onClick={() => setTitle("")}
               style={{
                 background: "#7c3aed",
