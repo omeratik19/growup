@@ -81,7 +81,10 @@ export default function Home() {
           }}
         >
           <button
-            onClick={() => router.push("/login")}
+            onClick={() => {
+              console.log("🚀 Hemen Başla butonuna tıklandı");
+              router.push("/login");
+            }}
             style={{
               background: "#7c3aed",
               color: "#fff",
@@ -107,7 +110,10 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => {
+              console.log("📊 Dashboard butonuna tıklandı");
+              router.push("/dashboard");
+            }}
             style={{
               background: "transparent",
               color: "#7c3aed",
@@ -127,6 +133,37 @@ export default function Home() {
             }}
           >
             📊 Dashboard'a Git
+          </button>
+
+          <button
+            onClick={() => {
+              console.log("🛒 Alışveriş butonuna tıklandı");
+              router.push("/shop");
+            }}
+            style={{
+              background: "linear-gradient(135deg, #ff6b6b, #ff8e53)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "12px",
+              padding: "16px 32px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: "0 4px 12px rgba(255, 107, 107, 0.3)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow =
+                "0 6px 16px rgba(255, 107, 107, 0.4)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(255, 107, 107, 0.3)";
+            }}
+          >
+            🛒 Alışveriş Yap
           </button>
         </div>
 
@@ -226,6 +263,66 @@ export default function Home() {
               }}
             >
               Yeni teknolojiler ve projeler keşfet
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: "20px",
+              background: "#f9fafb",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ fontSize: "24px", marginBottom: "8px" }}>🛒</div>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "8px",
+              }}
+            >
+              Alışveriş
+            </h3>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#6b7280",
+                lineHeight: "1.5",
+              }}
+            >
+              Trendyol benzeri e-ticaret deneyimi
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: "20px",
+              background: "#f9fafb",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ fontSize: "24px", marginBottom: "8px" }}>🏪</div>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "8px",
+              }}
+            >
+              Satıcı Paneli
+            </h3>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#6b7280",
+                lineHeight: "1.5",
+              }}
+            >
+              Ürün ekle ve satış yap
             </p>
           </div>
         </div>

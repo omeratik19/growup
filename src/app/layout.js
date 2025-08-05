@@ -1,4 +1,5 @@
 import "./globals.css";
+import PayPalProvider from "../components/PayPalProvider";
 
 export const metadata = {
   title: "GrowUp - Modern Sosyal Platform",
@@ -8,7 +9,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="tr">
-      <body>{children}</body>
+      <body>
+        <PayPalProvider>{children}</PayPalProvider>
+      </body>
     </html>
   );
 }

@@ -52,7 +52,7 @@ export default function MusicStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: prompt,
-          model: "v4",
+          model: "V4_5",
           duration: 180,
         }),
       });

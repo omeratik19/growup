@@ -758,6 +758,29 @@ export default function Dashboard() {
               🎵 Müzik
             </button>
             <button
+              onClick={() => router.push("/ai")}
+              style={{
+                background: "linear-gradient(45deg, #00ffff, #00ff88)",
+                color: "#000",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                boxShadow: "0 0 15px rgba(0, 255, 255, 0.4)",
+              }}
+              onMouseOver={(e) => {
+                e.target.style.boxShadow = "0 0 25px rgba(0, 255, 255, 0.6)";
+              }}
+              onMouseOut={(e) => {
+                e.target.style.boxShadow = "0 0 15px rgba(0, 255, 255, 0.4)";
+              }}
+            >
+              🤖 GrowAI
+            </button>
+            <button
               onClick={() => setTitle("")}
               style={{
                 background: "#7c3aed",

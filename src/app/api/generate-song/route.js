@@ -2,43 +2,165 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
-    const { prompt, model = "v4", duration = 180 } = await request.json();
+    const { prompt, model = "V4", duration = 180 } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt gerekli" }, { status: 400 });
     }
 
-    // Gelişmiş demo modu (gerçek API key'ler olmadan)
-    console.log("🎵 Gelişmiş Demo Modu - Şarkı üretimi başlatılıyor...");
+    console.log("🚀 API çağrısı başladı - Prompt:", prompt);
 
-    // Simüle edilmiş işlem süresi
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // SunoAPI.org anahtarı - Yeni hesap (ege.kv.41.08@gmail.com)
+    const SUNO_API_KEY = "c498d1ba4b20c98bf0d60ac14747cbbf";
 
-    // Dinamik şarkı sözleri üretimi (geliştirilmiş)
-    const generateLyrics = (userPrompt) => {
-      const themes = [
-        "aşk",
-        "ayrılık",
-        "umut",
-        "hüzün",
-        "mutluluk",
-        "öfke",
-        "pişmanlık",
-        "özlem",
-        "rock",
-        "pop",
-        "rap",
-        "folk",
-        "jazz",
-        "blues",
-        "electronic",
-        "country",
-      ];
+    console.log("🎵 SunoAPI.org doğru endpoint'leri kullanılıyor...");
+    console.log("🔑 API Key:", SUNO_API_KEY);
+    console.log(
+      "📡 Generate Endpoint:",
+      "https://api.sunoapi.org/api/v1/generate"
+    );
+    console.log(
+      "📡 Credits Endpoint:",
+      "https://api.sunoapi.org/api/v1/generate/credit"
+    );
 
-      const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+    // Credits kontrolü
+    try {
+      const creditsResponse = await fetch(
+        "https://api.sunoapi.org/api/v1/generate/credit",
+        {
+          headers: {
+            Authorization: `Bearer ${SUNO_API_KEY}`,
+          },
+        }
+      );
 
-      const lyricsTemplates = {
-        aşk: `[Verse 1]
+      if (creditsResponse.ok) {
+        const creditsData = await creditsResponse.json();
+        console.log("💰 Kalan Credits:", creditsData.data);
+
+        if (creditsData.data < 1) {
+          throw new Error("Yetersiz credits");
+        }
+      }
+    } catch (creditsError) {
+      console.error("❌ Credits hatası:", creditsError.message);
+    }
+
+    try {
+      // Şarkı üretimi başlat
+      console.log("🎵 Şarkı üretimi başlatılıyor...");
+
+      const generateResponse = await fetch(
+        "https://api.sunoapi.org/api/v1/generate",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SUNO_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            model: "V4",
+            customMode: false,
+            instrumental: false,
+            callBackUrl:
+              "https://growup-flax.vercel.app/api/get-generated-song",
+          }),
+        }
+      );
+
+      console.log("📊 Generate yanıtı status:", generateResponse.status);
+
+      if (!generateResponse.ok) {
+        const errorText = await generateResponse.text();
+        console.error("❌ Generate hatası:", errorText);
+        throw new Error(
+          `Generate hatası: ${generateResponse.status} - ${errorText}`
+        );
+      }
+
+      const generateData = await generateResponse.json();
+      console.log("✅ Generate başarılı! Yanıt:", generateData);
+
+      // Task ID'sini al
+      const taskId = generateData.data?.taskId || generateData.taskId;
+      console.log("🎵 Task ID:", taskId);
+
+      if (!taskId) {
+        throw new Error("Task ID bulunamadı");
+      }
+
+      // Şarkının hazır olmasını bekle
+      let audioUrl = null;
+      let attempts = 0;
+      const maxAttempts = 60; // 60 saniye bekle
+
+      while (attempts < maxAttempts) {
+        console.log(`⏳ Durum kontrolü ${attempts + 1}/${maxAttempts}...`);
+
+        const statusResponse = await fetch(
+          `https://api.sunoapi.org/api/v1/generate/record-info?taskId=${taskId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${SUNO_API_KEY}`,
+            },
+          }
+        );
+
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          console.log("📊 Şarkı durumu:", statusData);
+
+          if (statusData.data?.status === "SUCCESS") {
+            // Başarılı durumda audio URL'lerini al
+            const tracks = statusData.data.response?.data || [];
+            if (tracks.length > 0) {
+              audioUrl = tracks[0].audio_url;
+              console.log("🎵 Audio URL bulundu:", audioUrl);
+              break;
+            }
+          } else if (statusData.data?.status === "FAILED") {
+            throw new Error("Şarkı üretimi başarısız oldu");
+          }
+        } else {
+          console.log("❌ Durum kontrolü hatası:", statusResponse.status);
+        }
+
+        // 1 saniye bekle
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        attempts++;
+      }
+
+      if (!audioUrl) {
+        throw new Error("Şarkı üretimi zaman aşımına uğradı");
+      }
+
+      // Dinamik şarkı sözleri üretimi
+      const generateLyrics = (userPrompt) => {
+        const themes = [
+          "aşk",
+          "ayrılık",
+          "umut",
+          "hüzün",
+          "mutluluk",
+          "öfke",
+          "pişmanlık",
+          "özlem",
+          "rock",
+          "pop",
+          "rap",
+          "folk",
+          "jazz",
+          "blues",
+          "electronic",
+          "country",
+        ];
+
+        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+
+        const lyricsTemplates = {
+          aşk: `[Verse 1]
 ${userPrompt}
 Seninle her an güzel
 Kalbim seninle dolu
@@ -67,7 +189,7 @@ Her gece rüyamda
 Seni arıyorum
 Kalbimde yaşıyorsun`,
 
-        ayrılık: `[Verse 1]
+          ayrılık: `[Verse 1]
 ${userPrompt}
 Seni kaybettim
 Kalbim paramparça
@@ -96,7 +218,7 @@ Neden bıraktın
 Beni böyle yalnız
 Kimsesiz zamanlarda`,
 
-        rock: `[Verse 1]
+          rock: `[Verse 1]
 ${userPrompt}
 Gitar çalıyor
 Ses yükseliyor
@@ -125,7 +247,7 @@ Ses yükseliyor
 Kalbim çarpıyor
 Özgürlük yaşıyor`,
 
-        rap: `[Verse 1]
+          rap: `[Verse 1]
 ${userPrompt}
 Flow akıyor
 Rhyme geliyor
@@ -154,7 +276,7 @@ Flow akıyor
 Rhyme geliyor
 Rap ruhu yaşıyor`,
 
-        electronic: `[Verse 1]
+          electronic: `[Verse 1]
 ${userPrompt}
 Synthesizer çalıyor
 Electronic beat
@@ -182,109 +304,163 @@ ELECTRONIC!
 Digital beat
 Synthesizer
 Electronic ruh`,
+        };
 
-        pop: `[Verse 1]
-${userPrompt}
-Pop beat çalıyor
-Melodi akıyor
-Pop ruhu yaşıyor
-
-[Chorus]
-POP MUSIC!
-Melodi akıyor
-Beat çalıyor
-Pop ruhu yaşıyor
-
-[Verse 2]
-${userPrompt}
-Hook geliyor
-Pop sound
-Pop ruhu yaşıyor
-
-[Bridge]
-Pop world
-Pop soul
-Pop music
-
-[Chorus]
-POP MUSIC!
-Melodi akıyor
-Beat çalıyor
-Pop ruhu yaşıyor`,
-
-        jazz: `[Verse 1]
-${userPrompt}
-Saxophone çalıyor
-Jazz beat
-Jazz ruhu yaşıyor
-
-[Chorus]
-JAZZ!
-Smooth beat
-Saxophone
-Jazz ruhu yaşıyor
-
-[Verse 2]
-${userPrompt}
-Piano çalıyor
-Jazz sound
-Jazz ruhu yaşıyor
-
-[Bridge]
-Jazz world
-Jazz soul
-Smooth jazz
-
-[Chorus]
-JAZZ!
-Smooth beat
-Saxophone
-Jazz ruhu yaşıyor`,
+        return lyricsTemplates[randomTheme] || lyricsTemplates.aşk;
       };
 
-      return lyricsTemplates[randomTheme] || lyricsTemplates.aşk;
-    };
+      const dynamicLyrics = generateLyrics(prompt);
 
-    const dynamicLyrics = generateLyrics(prompt);
+      console.log("🎉 Başarılı! Gerçek AI şarkı üretildi");
 
-    // Farklı demo ses dosyaları
-    const demoAudioUrls = [
-      "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
-      "https://www.soundjay.com/misc/sounds/bell-ringing-04.wav",
-      "https://www.soundjay.com/misc/sounds/bell-ringing-03.wav",
-      "https://www.soundjay.com/misc/sounds/bell-ringing-02.wav",
-      "https://www.soundjay.com/misc/sounds/bell-ringing-01.wav",
-    ];
+      return NextResponse.json({
+        success: true,
+        title: `AI Şarkı - ${prompt.substring(0, 30)}...`,
+        audio_url: audioUrl, // Gerçek SunoAPI.org'dan gelen ses
+        lyrics: dynamicLyrics,
+        duration: `${Math.floor(duration / 60)}:${(duration % 60)
+          .toString()
+          .padStart(2, "0")}`,
+        model: model,
+        prompt: prompt,
+        is_demo: false,
+        message: "SunoAPI.org ile gerçek şarkı başarıyla üretildi",
+      });
+    } catch (apiError) {
+      console.error("❌ SunoAPI.org hatası:", apiError.message);
+      console.error("❌ Hata detayı:", apiError.message);
+      console.error("❌ Hata stack:", apiError.stack);
 
-    const randomAudioUrl =
-      demoAudioUrls[Math.floor(Math.random() * demoAudioUrls.length)];
+      // Bora Abi'nin basit fetch isteği
+      console.log("🔄 Bora Abi'nin basit fetch isteği deneniyor...");
 
-    return NextResponse.json({
-      success: true,
-      title: `AI Şarkı - ${prompt.substring(0, 30)}...`,
-      audio_url: randomAudioUrl, // Rastgele demo ses
-      lyrics: dynamicLyrics,
-      duration: `${Math.floor(duration / 60)}:${(duration % 60)
-        .toString()
-        .padStart(2, "0")}`,
-      model: model,
-      prompt: prompt,
-      is_demo: true,
-      message:
-        "Gelişmiş demo şarkı başarıyla üretildi (Gerçek API key'ler için Replicate/ElevenLabs hesabı gerekli)",
-    });
+      const url = "https://api.sunoapi.org/api/v1/generate";
+      const options = {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer c498d1ba4b20c98bf0d60ac14747cbbf",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customMode: false,
+          prompt: prompt,
+          instrumental: true,
+          model: "V4",
+          callBackUrl: "https://growup-flax.vercel.app/api/get-generated-song",
+        }),
+      };
+
+      try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        console.log("✅ Bora Abi'nin isteği başarılı:", data);
+
+        // Kredi kontrolü
+        if (data.code === 429) {
+          console.error("❌ Yetersiz kredi:", data.msg);
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Yetersiz kredi. Lütfen hesabınızı yükleyin.",
+              message: data.msg,
+            },
+            { status: 429 }
+          );
+        }
+
+        if (data.code !== 200) {
+          console.error("❌ API hatası:", data.msg);
+          return NextResponse.json(
+            {
+              success: false,
+              error: data.msg,
+              message: "API hatası oluştu",
+            },
+            { status: data.code }
+          );
+        }
+
+        // Task ID varsa polling başlat
+        if (data.code === 200 && data.data?.taskId) {
+          console.log("🎵 Task ID alındı, polling başlatılıyor...");
+
+          // Supabase'e kaydet
+          try {
+            const { supabase } = await import("../../../lib/supabaseClient");
+
+            const { data: insertData, error } = await supabase
+              .from("music_projects")
+              .insert({
+                title: `AI Şarkı - ${prompt.substring(0, 30)}...`,
+                prompt: prompt,
+                audio_url: null,
+                lyrics: null,
+                duration: null,
+                model: model,
+                status: "processing", // İşleniyor
+                is_demo: false,
+              })
+              .select();
+
+            if (error) {
+              console.error("❌ Supabase kayıt hatası:", error);
+            } else {
+              console.log("✅ Supabase'e kaydedildi:", insertData);
+            }
+          } catch (dbError) {
+            console.error("❌ Database hatası:", dbError);
+          }
+
+          return NextResponse.json({
+            success: true,
+            taskId: data.data.taskId,
+            message: "Şarkı üretimi başladı, işleniyor...",
+            status: "processing",
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: data,
+          message: "Bora Abi'nin basit fetch isteği başarılı",
+        });
+      } catch (error) {
+        console.error("❌ Bora Abi'nin isteği hatası:", error);
+
+        // Son fallback - demo modu
+        console.log("🎵 Demo şarkı üretiliyor...");
+
+        return NextResponse.json({
+          success: true,
+          title: `Demo Şarkı - ${prompt.substring(0, 30)}...`,
+          audio_url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
+          lyrics: `[Verse 1]\n${prompt}\n\n[Chorus]\nDemo şarkı\n\n[Verse 2]\n${prompt}`,
+          duration: "3:30",
+          model: model,
+          prompt: prompt,
+          is_demo: true,
+          message: "Demo şarkı üretildi (son fallback)",
+        });
+      }
+    }
   } catch (error) {
-    console.error("Şarkı üretimi hatası:", error);
+    console.error("💥 Şarkı üretimi hatası:", error);
+    console.error("💥 Hata detayı:", error.message);
+    console.error("💥 Hata stack:", error.stack);
 
     // Son fallback
     return NextResponse.json({
       success: true,
-      title: `Demo Şarkı - ${prompt.substring(0, 30)}...`,
+      title: `Demo Şarkı - ${prompt?.substring(0, 30) || "Bilinmeyen"}...`,
       audio_url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
-      lyrics: `[Verse]\n${prompt}\n\n[Chorus]\nBu bir demo şarkı sözüdür\nGerçek AI söz üretimi için API anahtarı gerekli\n\n[Verse 2]\n${prompt}\n\n[Chorus]\nBu bir demo şarkı sözüdür\nGerçek AI söz üretimi için API anahtarı gerekli`,
+      lyrics: `[Verse]\n${
+        prompt || "Hata"
+      }\n\n[Chorus]\nBu bir demo şarkı sözüdür\nGerçek AI söz üretimi için SunoAPI.org anahtarı gerekli\n\n[Verse 2]\n${
+        prompt || "Hata"
+      }\n\n[Chorus]\nBu bir demo şarkı sözüdür\nGerçek AI söz üretimi için SunoAPI.org anahtarı gerekli`,
       duration: "3:30",
-      model: "v4",
-      prompt: prompt,
+      model: "V4",
+      prompt: prompt || "Bilinmeyen",
       is_demo: true,
       message: "Demo şarkı üretildi (API hatası nedeniyle)",
     });
