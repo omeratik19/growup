@@ -165,6 +165,37 @@ export default function Home() {
           >
             🛒 Alışveriş Yap
           </button>
+
+          <button
+            onClick={() => {
+              console.log("🎬 Short Movie butonuna tıklandı");
+              router.push("/short-movie");
+            }}
+            style={{
+              background: "linear-gradient(135deg, #00d4ff, #0099cc)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "12px",
+              padding: "16px 32px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: "0 4px 12px rgba(0, 212, 255, 0.3)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow =
+                "0 6px 16px rgba(0, 212, 255, 0.4)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(0, 212, 255, 0.3)";
+            }}
+          >
+            🎬 Short Movie
+          </button>
         </div>
 
         {/* Features */}
@@ -323,6 +354,36 @@ export default function Home() {
               }}
             >
               Ürün ekle ve satış yap
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: "20px",
+              background: "#f9fafb",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ fontSize: "24px", marginBottom: "8px" }}>🎬</div>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "8px",
+              }}
+            >
+              Short Movie
+            </h3>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#6b7280",
+                lineHeight: "1.5",
+              }}
+            >
+              AI ile kısa film oluştur ve paylaş
             </p>
           </div>
         </div>
